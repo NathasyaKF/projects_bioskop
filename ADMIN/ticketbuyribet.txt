@@ -1,0 +1,224 @@
+<?php
+include "include/config.php";
+
+// Ambil movie_id dari URL
+$movie_id = isset($_GET['movie_id']) ? $_GET['movie_id'] : '';
+
+// Query untuk mengambil data film berdasarkan movie_id
+$query = mysqli_query($connection, "SELECT * FROM movie WHERE movie_id = '$movie_id'");
+// Mengambil data film
+$movie = mysqli_fetch_assoc($query);
+
+$query_showtimes = mysqli_query($connection, "
+    SELECT s.showtime_id, s.theater, s.show_time, s.price, s.show_date, c.name as cinema_name, c.cinema_id, c.address, c.kode_kota, c.postal_code 
+    FROM showtimes s 
+    JOIN cinema c ON s.cinema_id = c.cinema_id 
+    WHERE s.movie_id = '$movie_id'
+");
+
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Info</title>
+    <style>
+        .navbar {
+            height: 80px;
+            background-color: #254336;
+        }
+        .bawah {
+            width: 1000px;
+            margin: auto;
+            background-color: #eeeeee;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .navbar-nav .nav-link {
+            font-size: 16px;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            color: white;
+            margin-right: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .navbar-nav .nav-link:hover {
+            background-color: #f8f9fa;
+            color: black;
+        }
+        .kiri {
+            width: 300px;
+            margin-bottom: 15px;
+        }
+        .kanan {
+            margin-left: 30px;
+            width: 700px;
+        }
+        .foto {
+            margin-top: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!--membuat menu-->
+        <nav class="navbar navbar-expand-lg">
+            <div class="container-fluid">
+                <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item">
+                            <a class="nav-link" href="index.php">Now Playing</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="ADMIN/f-daftartransportasi">Theaters</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Up Coming</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Playing in - </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <!--membuat akhir menu-->
+
+        <div class="bawah">
+            <div class="foto">
+                <div class="kiri">
+                    <?php if ($movie && isset($movie['movie_img']) && is_file("images/" . $movie['movie_img'])) { ?>
+                        <img src="images/<?php echo $movie['movie_img']; ?>" alt="Movie Image">
+                    <?php } else { ?>
+                        <img src="images/noimage.png" alt="No Image">
+                    <?php } ?>
+                </div>
+
+                <div class="kanan">
+                    <?php if ($movie) { ?>
+                        <h4 class="judul"><?php echo $movie['judul']; ?></h4>
+                        <h5 class="durasi"><?php echo $movie['durasi']; ?></h5>
+                        <button type="button" class="btn btn-secondary btn-lg" disabled><?php echo $movie['jenis_bioskop']; ?></button>
+                        <button type="button" class="btn btn-secondary btn-lg" disabled><?php echo $movie['usia']; ?></button>
+                    <?php } else { ?>
+                        <p>No movie data available</p>
+                    <?php } ?>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <?php
+                // Mengecek jika ada kesalahan pada query
+                if (!$query_showtimes) {
+                    die('Query Error: ' . mysqli_error($connection));
+                }
+
+                // Menginisialisasi variabel untuk melacak cinema_id dan show_date sebelumnya
+                $current_cinema_id = null;
+                $current_show_date = null;
+
+                // Mulai loop untuk setiap data showtimes
+                while ($showtimes = mysqli_fetch_assoc($query_showtimes)) {
+                    // Periksa apakah cinema_id ada dalam hasil
+                    if (!isset($showtimes['cinema_id'])) {
+                        continue; // Lewati iterasi ini jika cinema_id tidak ada
+                    }
+
+                    // Jika cinema_id berubah, akhiri card sebelumnya dan mulai card baru
+                    if ($current_cinema_id !== $showtimes['cinema_id']) {
+                        // Akhiri card sebelumnya (jika ada)
+                        if ($current_cinema_id !== null) {
+                            echo '</div>'; // Akhiri div card-body
+                            echo '</div><hr>'; // Akhiri card dan tambahkan garis horizontal
+                        }
+
+                        // Mulai card baru dengan cinema_name sebagai header
+                        echo '<div class="card">';
+                        echo '<div class="card-header">' . $showtimes['cinema_name'] . '</div>';
+                        echo '<div class="card-body">';
+
+                        // Perbarui current_cinema_id dan reset current_show_date
+                        $current_cinema_id = $showtimes['cinema_id'];
+                        $current_show_date = null;
+                    }
+
+                    // Jika show_date berubah, tampilkan show_date dan mulai div baru untuk kumpulan show_time
+                    if ($current_show_date !== $showtimes['show_date']) {
+                        // Akhiri div kumpulan show_time sebelumnya (jika ada)
+                        if ($current_show_date !== null) {
+                            echo '</div>'; // Akhiri div kumpulan button show_time
+                        }
+
+                        // Tampilkan show_date
+                        echo '<p class="card-text">' . $showtimes['show_date'] . '</p>';
+                        echo '<div class="btn-group" role="group">'; // Mulai div kumpulan button show_time
+
+                        // Perbarui current_show_date
+                        $current_show_date = $showtimes['show_date'];
+                    }
+
+                    // Tampilkan button show_time dengan modal trigger
+                    echo '<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal" onclick="setShowtimeId(' . $showtimes['showtime_id'] . ')">' . $showtimes['show_time'] . '</button>';
+                }
+
+                // Akhiri div terakhir (jika ada)
+                if ($current_cinema_id !== null) {
+                    echo '</div>'; // Akhiri div kumpulan button show_time terakhir
+                    echo '</div>'; // Akhiri div card-body terakhir
+                }
+
+                // Handle jika tidak ada data
+                if (mysqli_num_rows($query_showtimes) === 0) {
+                    echo '<p>No showtimes data available</p>';
+                }
+                ?>
+            </div>
+
+        </div>
+
+        <!-- Modal -->
+        <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="exampleModalLabel">Showtime Information</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        ...
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="saveChangesBtn">Save changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let selectedShowtimeId = null;
+
+        function setShowtimeId(showtimeId) {
+            selectedShowtimeId = showtimeId;
+        }
+
+        document.getElementById('saveChangesBtn').addEventListener('click', function() {
+            if (selectedShowtimeId !== null) {
+                window.location.href = 'ticket.php?showtime_id=' + selectedShowtimeId;
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous">
+    </script>
+</body>
+</html>
